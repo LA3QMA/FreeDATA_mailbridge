@@ -17,6 +17,8 @@ The [SERVER] work logic:
                 Checks email and reply with a P2P message with all e-mail uid, from and subject
             QTC:uid (To get several uids you can use this format  QTC:1,3,4)
                 Get mail uid #1 or uids #1,3,4 from server and send this as a P2P messages
+            DOWNLOAD:uid,filename
+                If a messsage has attachments the uid and filename(s) is displayed. Use this to get a P2P messae with the attachment.
             QTC:SEARCH {from@email.com,subject}
                 Get emails containing the from address and/or the subject and send this as a P2P message
             MAILTO:to@address,subject,body
@@ -29,5 +31,5 @@ The [CLIENT] work logic:
         ps: before transmitting this you can attach files from FreeDATA GUI
         QTC?
         QTC:uid[,uid,uid...]
-
-        FreeDATA is then transmitting this to the [SERVER] via P2P
+        QTC:SEARCH from@mail.com|subject
+            Get emails containing the from address and/or the subject and send this as a P2P message
