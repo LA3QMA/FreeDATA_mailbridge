@@ -14,7 +14,18 @@ The [SERVER] work logic:
 
         If this is a message containing:
             QTC?
-                Checks email and reply with a P2P message with all e-mail uid, from and subject
+            QTC:uid (To get several uids you can use this format  QTC:1,3,4)
+            DOWNLOAD:uid,filename
+            QTC:SEARCH {from@email.com,subject}
+            MAILTO:to@address,subject,body
+
+            parse the message and check the emai server. Send the response as a FreeDATA P2P message.
+
+The [CLIENT] work logic:
+
+    From your FreeDATA GUI you can send a P2P message to the [SERVER] callsign-SSID formated like:
+            QTC?
+                Checks email and reply with a P2P message with all e-mail uid, from, subject and a list of attachments
             QTC:uid (To get several uids you can use this format  QTC:1,3,4)
                 Get mail uid #1 or uids #1,3,4 from server and send this as a P2P messages
             DOWNLOAD:uid,filename
@@ -22,14 +33,3 @@ The [SERVER] work logic:
             QTC:SEARCH {from@email.com,subject}
                 Get emails containing the from address and/or the subject and send this as a P2P message
             MAILTO:to@address,subject,body
-                Parse message and send this as email. If any attachments this is also included.
-
-The [CLIENT] work logic:
-
-    From your FreeDATA GUI you can send a P2P message to the [SERVER] callsign-SSID formated like:
-        MAILTO:to@address,subject,body
-        ps: before transmitting this you can attach files from FreeDATA GUI
-        QTC?
-        QTC:uid[,uid,uid...]
-        QTC:SEARCH from@mail.com|subject
-            Get emails containing the from address and/or the subject and send this as a P2P message
