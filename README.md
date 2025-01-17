@@ -5,6 +5,8 @@
 There are hardly any error handling at the moment.
 I'm new to python and this is something i made for my personal need.
 
+See the Wiki for some images of usage.
+
 Minimum requirements:
 Your FreeDATA station called [SERVER] should have Internet and be running FreeDATA and "main.py"
 
