@@ -20,6 +20,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from pathlib import Path
 
 
 def encode_file_to_base64_string(input_file):
@@ -40,7 +41,7 @@ def fetch_filtered_emails(search_email=None, search_subject=None, retries=3, del
     for attempt in range(retries):
         try:
             # Connect to the IMAP server
-            mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+            mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
 
             # Login to the account
             mail.login(IMAP_USERNAME, IMAP_PASSWORD)
@@ -134,7 +135,7 @@ def fetch_emails_by_uids(uids, retries=3, delay=5):
     for attempt in range(retries):
         try:
             # Connect to the IMAP server
-            mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+            mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
 
             # Login to the account
             mail.login(IMAP_USERNAME, IMAP_PASSWORD)
@@ -554,50 +555,74 @@ def main():
                         msg['From'] = sender_email
                         msg['To'] = recipient_email
                         msg['Subject'] = subject
-
+                        vedlegg = True
                         if "attachments" in message:
+                            #vedlegg = True
                             attachments = message["attachments"]
-
                             # This is for encoding
                             msg.attach((MIMEText(body, 'plain')))
 
                             for attachment in attachments:
-                                attachment_field_names = list(attachment.keys())
                                 data = attachment["data"]
                                 current_directory = os.getcwd()
-                                subfolder_attachments = "attachments"
-                                subfolder_path = os.path.join(current_directory, subfolder_attachments)
-                                attachment = os.path.join(subfolder_path, attachment["name"])
+                                attachment = os.path.join(current_directory, attachment["name"])
                                 decode_base64_to_file(data, attachment)
-                                # FIXME should not decode, save , reload and encode the attachement
+                                # FIXME should not decode, save , reload and encode the attachment
                                 try:
                                     with open(attachment, 'rb') as attachment2:
                                         part = MIMEBase('application', 'octet-stream')
                                         part.set_payload(attachment2.read())
                                         encoders.encode_base64(part)
-                                        part.add_header('Content-Disposition', f'attachment; filename={attachment}')
+                                        part.add_header('Content-Disposition', f"attachment; filename={attachment}")
                                         msg.attach(part)
+
                                 except FileNotFoundError:
                                     print(f"Attachemnt not found")
-                                    set_isread(message["id"], True)
-                    else:
+                                    #set_isread(message["id"], True)
 
+                    else:
+                        vedlegg = False
                         print("No attachments - sending plain mail")
                         msg = MIMEText(body, 'plain')
                         msg['From'] = sender_email
                         msg['To'] = recipient_email
                         msg['Subject'] = subject
 
-                        try:
-                            with smtplib.SMTP(smtp_server, port) as server:
-                                server.starttls()
-                                server.login(sender_email, sender_password)
-                                server.sendmail(sender_email, recipient_email, msg.as_string())
-                                print("Mail sent ok")
-                        except Exception as e:
-                            print(f"Failed to send email: {e}")
+                    try:
+                        server = smtplib.SMTP(smtp_server, smtp_port)
+                        server.starttls()
+                        server.login(sender_email, sender_password)
+                        #fixme remove to actually send email
+                        if vedlegg == False:
+                            print("Uten vedlegg: ", msg.as_string())
+
+                            server.sendmail(sender_email, recipient_email, msg.as_string())
+                            #set_isread(message["id"], True)
+                        else:
+                            print("Med vedlegg: ", msg)
+                            server.send_message(msg)
+                            #set_isread(message["id"], True)
+                        print("Mail sent ok")
+                        #fixme remove this to send a OK message
+                        send_p2p("Mail sent ok")
+                    except smtplib.SMTPAuthenticationError:
+                        print("Check username/password")
+                        send_p2p("Check username/password")
+                    except smtplib.SMTPConnectError:
+                        print("unable to connect to smtp")
+                        send_p2p("unable to connect to smtp")
+                    except smtplib.SMTPRecipientsRefused:
+                        print("recipients refused")
+                        send_p2p("recipients refused")
+                    except smtplib.SMTPDataError:
+                        print("refused to accept message data")
+                        send_p2p("refused to accept message data")
+
+                    except Exception as e:
+                        print(f"Failed to send email: {e}")
+                        send_p2p(f"refused to accept message data: {e}")
                         # FIXME remove this and only send this after mbox_parse_send() is ok
-                        set_isread(message["id"], True)
+                    #set_isread(message["id"], True)
                 set_isread(message["id"], True)
 
 
@@ -615,14 +640,15 @@ if __name__ == '__main__':
         IMAP_SERVER = configuration.get('MAIL', 'IMAP_SERVER')
         IMAP_USERNAME = configuration.get('MAIL', 'IMAP_USERNAME')
         IMAP_PASSWORD = configuration.get('MAIL', 'IMAP_PASSWORD')
+        IMAP_PORT = int(configuration.getint('MAIL', 'IMAP_PORT'))
 
         # SMTP server details and sender credentials
         smtp_server = configuration.get('MAIL', 'smtp_server')
-        port = int(configuration.get('MAIL', 'port'))
+        smtp_port = int(configuration.getint('MAIL', 'smtp_port'))
         sender_email = configuration.get('MAIL', 'sender_email')
         sender_password = configuration.get('MAIL', 'sender_password')
 
-        mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
 
         # just print these to give some simple information
         print(configuration.get('FREEDATA', 'modemport'))
