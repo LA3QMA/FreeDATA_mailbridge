@@ -420,7 +420,7 @@ def send_p2p(message):
 
 
 async def handle_websocket(uri):
-    async with websockets.connect(uri) as websocket:
+    async with websockets.connect(uri, ping_timeout=60) as websocket:
         print("Connected to WebSocket server")
 
         while True:
