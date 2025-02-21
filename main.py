@@ -4,6 +4,7 @@
 import asyncio
 import configparser
 import os
+
 import websockets
 import json
 import sys
@@ -20,7 +21,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-from pathlib import Path
 
 
 def encode_file_to_base64_string(input_file):
@@ -112,7 +112,7 @@ def fetch_filtered_emails(search_email=None, search_subject=None, retries=3, del
 
                 help_msg = (
                     f"\n\n**To get email reply with:** QTC:uid[s]\n\n"
-                    f"**To get attachment reply with:** DOWNLOAD:uid,filename\n\n"
+                    f"**To get attachment reply with:** QTC:DOWNLOAD uid,filename\n\n"
                 )
 
             prepare_msg += help_msg
@@ -132,6 +132,7 @@ def fetch_filtered_emails(search_email=None, search_subject=None, retries=3, del
 
 
 def fetch_emails_by_uids(uids, retries=3, delay=5):
+    global date, from_, subject, body
     for attempt in range(retries):
         try:
             # Connect to the IMAP server
@@ -210,10 +211,10 @@ def fetch_emails_by_uids(uids, retries=3, delay=5):
 
                 help_msg = (
                     f"\n\n**To get email reply with: QTC:uid[s]**\n\n"
-                    f"**To get attachment reply with:** DOWNLOAD:uid,filename\n\n"
+                    f"**To get attachment reply with:** QTC:DOWNLOAD uid,filename\n\n"
                 )
 
-            prepare_msg += help_msg
+                prepare_msg += help_msg
             # Logout and close the connection
             mail.logout()
             send_p2p(prepare_msg)
@@ -235,6 +236,7 @@ def send_p2p(message):
 
 
 def fetch_unread_emails(retries=3, delay=5):
+    global date, from_, subject
     for attempt in range(retries):
         try:
             # Connect to the IMAP server
@@ -293,15 +295,15 @@ def fetch_unread_emails(retries=3, delay=5):
             if len(prepare_msg) < 1:
                 prepare_msg = (
                     f"**No no e-mails**\n\n"
+                    f"**Get email uids containing the from address and/or the subject** SEARCH:from@email.com,subject\n\n"
                 )
             else:
                 help_msg = (
                     f"\n\n**To get email reply with:** QTC:uid[s]\n\n"
-                    f"**To get attachment reply with:** DOWNLOAD:uid,filename\n\n"
-            )
+                    f"**To get attachment reply with:** QTC:DOWNLOAD uid,filename\n\n"
+                    f"**Get email uids containing the from address and/or the subject** SEARCH:from@email.com,subject\n\n"
+                )
                 prepare_msg += help_msg
-
-            #            prepare_msg += help_msg
 
             # Logout and close the connection
             mail.logout()
@@ -318,14 +320,9 @@ def fetch_unread_emails(retries=3, delay=5):
             break
 
 
-def send_p2p(message):
-    # Placeholder function for sending the message
-    print("Sending message:", message)
-
-
 def handle_message_db_changed():
     print("Message DB has changed!")
-    main()
+    main_mail_bot()
 
 
 def set_isread(message, status):
@@ -362,10 +359,10 @@ def handle_qtc_query(query):
         return "fetch_unread_emails"
     elif query == "QTC:ALL":
         return "TODO: not implemented"
-    elif query.startswith("DOWNLOAD:"):
+    elif query.startswith("QTC:DOWNLOAD"):
         split_data = query.split(',')
         if len(split_data) > 1:
-            uid = split_data[0].replace("DOWNLOAD:", "")
+            uid = split_data[0].replace("QTC:DOWNLOAD", "")
             filename = split_data[1]
             download_attachment(uid, filename)
         return "Downloaded file"
@@ -420,25 +417,26 @@ def send_p2p(message):
 
 
 async def handle_websocket(uri):
-    async with websockets.connect(uri, ping_timeout=60) as websocket:
-        print("Connected to WebSocket server")
 
-        while True:
-            message = await websocket.recv()
-            # TODO remove these print as they now are used for debug
-            #print("Received message:", message)
+        async with websockets.connect(uri, ping_timeout=60) as websocket:
+            print("Connected to WebSocket server")
 
-            try:
-                data = json.loads(message)
-                if data.get("message-db") == "changed":
-                    handle_message_db_changed()
-                else:
-                    print("Unhandled message:", data)
-            except json.JSONDecodeError:
-                print("Invalid JSON format:", message)
-            except Exception as e:
-                print("Error processing message:", e)
+            while True:
+                message = await websocket.recv()
+                # TODO remove these print as they now are used for debug
+                #print("Received message:", message)
 
+                try:
+                    data = json.loads(message)
+                    if data.get("message-db") == "changed":
+                        handle_message_db_changed()
+                    else:
+                        print("Unhandled message:", data)
+
+                except json.JSONDecodeError:
+                    print("Invalid JSON format:", message)
+                except Exception as e:
+                    print("Error processing message:", e)
 
 def send_file_p2p(filename, encoded_string):
     url = "http://localhost:" + config.get('FREEDATA', 'modemport') + "/freedata/messages"
@@ -522,108 +520,122 @@ def download_attachment(uid, attachment_name, retries=3, delay=5):
             print(f"An unexpected error occurred: {e}")
             break
 
+async def websocket_client(uri):
 
-def main():
-    # Make a GET request to the API endpoint
-    response = requests.get('http://localhost:' + config.get('FREEDATA', 'modemport') + '/freedata/messages')
+    async with websockets.connect(uri) as websocket:
+        while True:
+            try:
+                response = await websocket.recv()
 
-    # Check if the request was successful (status code 200)
-    if response.status_code == 200:
-        # Parse JSON response
-        data = response.json()
+                try:
+                    data = json.loads(response)
+                    if data.get("message-db") == "changed":
+                        handle_message_db_changed()
 
-        # Print fields with content in attachment and is_read = false
-        for message in data["messages"]:
+                except json.JSONDecodeError:
+                    print("Invalid JSON format:", response)
+                except Exception as e:
+                    print("Error processing message:", e)
 
-            # remove Markdown
-            mdown = MarkdownIt(renderer_cls=RendererPlain)
+            except websockets.ConnectionClosed:
+                print("reconnecting")
+                break
 
-            if mdown.render(message["body"]) and not message["is_read"]:
-                parse = mdown.render(message["body"])
+def main_mail_bot():
+        # Make a GET request to the API endpoint
+        response = requests.get('http://localhost:' + config.get('FREEDATA', 'modemport') + '/freedata/messages')
 
-                result = handle_qtc_query(parse)
+        # Check if the request was successful (status code 200)
+        if response.status_code == 200:
+            # Parse JSON response
+            data = response.json()
 
-                if result.startswith("MAILTO:"):
-                    parts = result.split('|')
-                    recipient_email = parts[0].replace("MAILTO:", "")
-                    subject = parts[1]
-                    body = parts[2]
+            # Print fields with content in attachment and is_read = false
+            for message in data["messages"]:
 
-                    if message["attachments"] and not message["is_read"]:
-                        # create a multipart message
-                        msg = MIMEMultipart()
-                        msg['From'] = sender_email
-                        msg['To'] = recipient_email
-                        msg['Subject'] = subject
-                        vedlegg = True
-                        if "attachments" in message:
-                            #vedlegg = True
-                            attachments = message["attachments"]
-                            # This is for encoding
-                            msg.attach((MIMEText(body, 'plain')))
+                # remove Markdown
+                mdown = MarkdownIt(renderer_cls=RendererPlain)
 
-                            for attachment in attachments:
-                                data = attachment["data"]
-                                current_directory = os.getcwd()
-                                attachment = os.path.join(current_directory, attachment["name"])
-                                decode_base64_to_file(data, attachment)
-                                # FIXME should not decode, save , reload and encode the attachment
-                                try:
-                                    with open(attachment, 'rb') as attachment2:
-                                        part = MIMEBase('application', 'octet-stream')
-                                        part.set_payload(attachment2.read())
-                                        encoders.encode_base64(part)
-                                        part.add_header('Content-Disposition', f"attachment; filename={attachment}")
-                                        msg.attach(part)
+                if mdown.render(message["body"]) and not message["is_read"]:
+                    parse = mdown.render(message["body"])
 
-                                except FileNotFoundError:
-                                    print(f"Attachemnt not found")
-                                    #set_isread(message["id"], True)
+                    result = handle_qtc_query(parse)
 
-                    else:
-                        vedlegg = False
-                        print("No attachments - sending plain mail")
-                        msg = MIMEText(body, 'plain')
-                        msg['From'] = sender_email
-                        msg['To'] = recipient_email
-                        msg['Subject'] = subject
+                    if result.startswith("MAILTO:"):
+                        parts = result.split('|')
+                        recipient_email = parts[0].replace("MAILTO:", "")
+                        subject = parts[1]
+                        body = parts[2]
 
-                    try:
-                        server = smtplib.SMTP(smtp_server, smtp_port)
-                        server.starttls()
-                        server.login(sender_email, sender_password)
-                        #fixme remove to actually send email
-                        if vedlegg == False:
-                            print("Uten vedlegg: ", msg.as_string())
+                        if message["attachments"] and not message["is_read"]:
+                            # create a multipart message
+                            msg = MIMEMultipart()
+                            msg['From'] = sender_email
+                            msg['To'] = recipient_email
+                            msg['Subject'] = subject
+                            attachments_included = True
+                            if "attachments" in message:
+                                attachments = message["attachments"]
+                                # This is for encoding
+                                msg.attach((MIMEText(body, 'plain')))
 
-                            server.sendmail(sender_email, recipient_email, msg.as_string())
-                            #set_isread(message["id"], True)
+                                for attachment in attachments:
+                                    data = attachment["data"]
+                                    current_directory = os.getcwd()
+                                    attachment = os.path.join(current_directory, attachment["name"])
+                                    decode_base64_to_file(data, attachment)
+                                    # FIXME should not decode, save , reload and encode the attachment
+                                    try:
+                                        with open(attachment, 'rb') as attachment2:
+                                            part = MIMEBase('application', 'octet-stream')
+                                            part.set_payload(attachment2.read())
+                                            encoders.encode_base64(part)
+                                            part.add_header('Content-Disposition', f"attachment; filename={attachment}")
+                                            msg.attach(part)
+
+                                    except FileNotFoundError:
+                                        print(f"Attachemnt not found")
+                                        #set_isread(message["id"], True)
+
                         else:
-                            print("Med vedlegg: ", msg)
-                            server.send_message(msg)
-                            #set_isread(message["id"], True)
-                        print("Mail sent ok")
-                        #fixme remove this to send a OK message
-                        send_p2p("Mail sent ok")
-                    except smtplib.SMTPAuthenticationError:
-                        print("Check username/password")
-                        send_p2p("Check username/password")
-                    except smtplib.SMTPConnectError:
-                        print("unable to connect to smtp")
-                        send_p2p("unable to connect to smtp")
-                    except smtplib.SMTPRecipientsRefused:
-                        print("recipients refused")
-                        send_p2p("recipients refused")
-                    except smtplib.SMTPDataError:
-                        print("refused to accept message data")
-                        send_p2p("refused to accept message data")
+                            attachments_included = False
+                            print("No attachments - sending plain mail")
+                            msg = MIMEText(body, 'plain')
+                            msg['From'] = sender_email
+                            msg['To'] = recipient_email
+                            msg['Subject'] = subject
 
-                    except Exception as e:
-                        print(f"Failed to send email: {e}")
-                        send_p2p(f"refused to accept message data: {e}")
-                        # FIXME remove this and only send this after mbox_parse_send() is ok
-                    #set_isread(message["id"], True)
-                set_isread(message["id"], True)
+                        try:
+                            server = smtplib.SMTP(smtp_server, smtp_port)
+                            server.starttls()
+                            server.login(sender_email, sender_password)
+                            #fixme remove to actually send email
+                            if attachments_included == False:
+                                print("Without attachment: ", msg.as_string())
+                                server.sendmail(sender_email, recipient_email, msg.as_string())
+                            else:
+                                print("With attachment: ", msg)
+                                server.send_message(msg)
+                            print("Mail sent ok")
+                            send_p2p("Mail sent ok")
+                        except smtplib.SMTPAuthenticationError:
+                            print("Check username/password")
+                            send_p2p("Check username/password")
+                        except smtplib.SMTPConnectError:
+                            print("unable to connect to smtp")
+                            send_p2p("unable to connect to smtp")
+                        except smtplib.SMTPRecipientsRefused:
+                            print("recipients refused")
+                            send_p2p("recipients refused")
+                        except smtplib.SMTPDataError:
+                            print("refused to accept message data")
+                            send_p2p("refused to accept message data")
+
+                        except Exception as e:
+                            print(f"Failed to send email: {e}")
+                            send_p2p(f"refused to accept message data: {e}")
+                            # FIXME remove this and only send this after mbox_parse_send() is ok
+                    set_isread(message["id"], True)
 
 
 if __name__ == '__main__':
@@ -658,7 +670,13 @@ if __name__ == '__main__':
     else:
         sys.exit("Missing config")
 
-    main()
-
-    websocket_server_uri = 'ws://localhost:' + config.get('FREEDATA', 'modemport') + '/events'
-    asyncio.get_event_loop().run_until_complete(handle_websocket(websocket_server_uri))
+async def main():
+    while True:
+        try:
+            await  websocket_client(configuration.get('FREEDATA', 'websocket_server_uri'))
+        except Exception as e:
+            print(f" {e}")
+            await asyncio.sleep(5)
+loop = asyncio.get_event_loop()
+loop.create_task(main())
+loop.run_forever()
