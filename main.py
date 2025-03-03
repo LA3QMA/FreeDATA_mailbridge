@@ -126,6 +126,7 @@ def fetch_filtered_emails(search_email=None, search_subject=None, retries=3, del
                 time.sleep(delay * (2 ** attempt))  # Exponential backoff
             else:
                 print("All attempts failed. Could not fetch emails.")
+                send_p2p("All attempts failed. Could not fetch emails.")
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             break
@@ -225,14 +226,10 @@ def fetch_emails_by_uids(uids, retries=3, delay=5):
                 time.sleep(delay * (2 ** attempt))  # Exponential backoff
             else:
                 print("All attempts failed. Could not fetch emails.")
+                send_p2p("All attempts failed. Could not fetch emails.")
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             break
-
-
-def send_p2p(message):
-    # Placeholder function for sending the message
-    print("Sending message:", message)
 
 
 def fetch_unread_emails(retries=3, delay=5):
@@ -315,6 +312,7 @@ def fetch_unread_emails(retries=3, delay=5):
                 time.sleep(delay * (2 ** attempt))  # Exponential backoff
             else:
                 print("All attempts failed. Could not fetch emails.")
+                send_p2p("All attempts failed. Could not fetch emails.")
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             break
@@ -506,6 +504,7 @@ def download_attachment(uid, attachment_name, retries=3, delay=5):
                                     return
 
             print(f"Attachment {attachment_name} not found in email with UID {uid}.")
+            send_p2p(f"Attachment {attachment_name} not found in email with UID {uid}.")
 
             # Logout and close the connection
             mail.logout()
@@ -516,6 +515,7 @@ def download_attachment(uid, attachment_name, retries=3, delay=5):
                 time.sleep(delay * (2 ** attempt))  # Exponential backoff
             else:
                 print("All attempts failed. Could not download attachment.")
+                send_p2p("All attempts failed. Could not download attachment.")
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             break
