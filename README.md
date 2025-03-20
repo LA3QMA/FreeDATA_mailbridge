@@ -36,3 +36,8 @@ The [CLIENT] work logic:
                 Get email uids containing the from address and/or the subject and send this as a P2P message
                 If not searching the from address use this format: QTC:SEARCH ,subject
             MAILTO:to@address,subject,body
+![client_qtc](https://github.com/user-attachments/assets/92cb5b84-6e4f-41c7-b95f-e3e75904115d)
+![client_qtc2](https://github.com/user-attachments/assets/bb3fb4a5-0e56-464e-8c38-f99344d3bb56)
+![client_download](https://github.com/user-attachments/assets/6d514f53-5035-4dd4-9ed8-524d88e2a3f4)
+![client_download2](https://github.com/user-attachments/assets/4f9cdd2b-ac05-4078-a854-11a88fde705e)
+![client_mailto](https://github.com/user-attachments/assets/94ea5ce9-24fe-4fcd-b591-d020d0d98d20)
