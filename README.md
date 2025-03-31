@@ -19,7 +19,7 @@ The [SERVER] work logic:
             QTC:uid (To get several uids you can use this format  QTC:1,3,4)
             DOWNLOAD:uid,filename
             QTC:SEARCH {from@email.com,subject}
-            MAILTO:to@address,subject,body
+            MAILTO:to@address|subject|body
 
             parse the message and check the email server. Send the response as a FreeDATA P2P message.
 
@@ -35,7 +35,8 @@ The [CLIENT] work logic:
             QTC:SEARCH {from@email.com,subject}
                 Get email uids containing the from address and/or the subject and send this as a P2P message
                 If not searching the from address use this format: QTC:SEARCH ,subject
-            MAILTO:to@address,subject,body
+            MAILTO:to@address|subject|body
+
 ![client_qtc](https://github.com/user-attachments/assets/92cb5b84-6e4f-41c7-b95f-e3e75904115d)
 ![client_qtc2](https://github.com/user-attachments/assets/bb3fb4a5-0e56-464e-8c38-f99344d3bb56)
 ![client_download](https://github.com/user-attachments/assets/6d514f53-5035-4dd4-9ed8-524d88e2a3f4)
