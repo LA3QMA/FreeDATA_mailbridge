@@ -38,6 +38,10 @@ def decode_base64_to_file(encoded_string, output_file):
 
 
 def fetch_filtered_emails(search_email=None, search_subject=None, retries=3, delay=5):
+
+    #for debuging
+    print("Searching e-mail....")
+
     for attempt in range(retries):
         try:
             # Connect to the IMAP server
@@ -54,6 +58,7 @@ def fetch_filtered_emails(search_email=None, search_subject=None, retries=3, del
             if search_email:
                 search_criteria.append(f'FROM "{search_email}"')
             if search_subject:
+                #FIXEME handle quote ig subject includes space
                 search_criteria.append(f'SUBJECT "{search_subject}"')
 
             # Combine the search criteria with AND if both are provided
@@ -65,61 +70,81 @@ def fetch_filtered_emails(search_email=None, search_subject=None, retries=3, del
             # Search for messages based on the criteria
             status, messages = mail.search(None, search_query)
 
-            # Convert messages to a list of email IDs
-            email_ids = messages[0].split()
-
-            prepare_msg = ""
-            attachment = ""
-
-            for email_id in email_ids:
-                # Fetch the email by ID
-                status, msg_data = mail.fetch(email_id, '(BODY.PEEK[])')
-
-                for response_part in msg_data:
-                    if isinstance(response_part, tuple):
-                        msg = email.message_from_bytes(response_part[1])
-
-                        # Decode the email subject
-                        subject, encoding = decode_header(msg["Subject"])[0]
-                        if isinstance(subject, bytes):
-                            subject = subject.decode(encoding if encoding else "utf-8")
-                        subject = subject if subject else "No Subject"
-
-                        # Decode the sender's email address
-                        from_ = msg.get("From")
-                        from_ = from_ if from_ else "Unknown Sender"
-
-                        # Get the date of the email
-                        date = msg.get("Date")
-                        date = date if date else "Unknown Date"
-
-                        # Check for attachments
-                        if msg.is_multipart():
-                            for part in msg.walk():
-                                content_disposition = part.get("Content-Disposition")
-                                if content_disposition and "attachment" in content_disposition:
-                                    filename = part.get_filename()
-                                    if filename:
-                                        filesize = len(part.get_payload(decode=True))
-                                        attachment += f"\n{filename} - ({filesize} bytes)\n\n"
-                prepare_msg += (
-                    f"**UID:** {email_id.decode('utf-8')}\n\n"
-                    f"**Date:** {date}\n\n"
-                    f"**From:** {from_}\n\n"
-                    f"**Subject:** {subject}\n\n"
-                    f"**Attachment(s):** {attachment}\n\n"
+            print("Message: ", messages)
+            if status == 'OK' and not messages[0]:
+                print("No search result")
+                prepare_msg = (
+                    f"**No e-mails with your search criteria**\n\n"
+                    f"**Get email uids containing the from address and/or the subject** SEARCH:from@email.com,subject\n\n"
                 )
+                send_p2p(prepare_msg)
+                break
+            else:
+                print("Search OK")
+                #FIXME should check for correct quotation for IMAP search
 
-                help_msg = (
-                    f"\n\n**To get email reply with:** QTC:uid[s]\n\n"
-                    f"**To get attachment reply with:** QTC:DOWNLOAD uid,filename\n\n"
-                )
+                # Convert messages to a list of email IDs
+                email_ids = messages[0].split()
 
-            prepare_msg += help_msg
-            # Logout and close the connection
-            mail.logout()
-            send_p2p(prepare_msg)
-            break  # Exit the loop if successful
+                prepare_msg = ""
+                attachment = ""
+
+                for email_id in email_ids:
+                    # Fetch the email by ID
+                    status, msg_data = mail.fetch(email_id, '(BODY.PEEK[])')
+
+                    for response_part in msg_data:
+                        if isinstance(response_part, tuple):
+                            msg = email.message_from_bytes(response_part[1])
+
+                            # Decode the email subject
+                            subject, encoding = decode_header(msg["Subject"])[0]
+                            if isinstance(subject, bytes):
+                                subject = subject.decode(encoding if encoding else "utf-8")
+                            subject = subject if subject else "No Subject"
+
+                            # Decode the sender's email address
+                            from_ = msg.get("From")
+                            from_ = from_ if from_ else "Unknown Sender"
+
+                            # Get the date of the email
+                            date = msg.get("Date")
+                            date = date if date else "Unknown Date"
+
+                            # Check for attachments
+                            if msg.is_multipart():
+                                for part in msg.walk():
+                                    content_disposition = part.get("Content-Disposition")
+                                    if content_disposition and "attachment" in content_disposition:
+                                        filename = part.get_filename()
+                                        if filename:
+                                            filesize = len(part.get_payload(decode=True))
+                                            attachment += f"\n{filename} - ({filesize} bytes)\n\n"
+                    prepare_msg += (
+                        f"**UID:** {email_id.decode('utf-8')}\n\n"
+                        f"**Date:** {date}\n\n"
+                        f"**From:** {from_}\n\n"
+                        f"**Subject:** {subject}\n\n"
+                        f"**Attachment(s):** {attachment}\n\n"
+                    )
+
+                    help_msg = (
+                        f"\n\n**To get email reply with:** QTC:uid[s]\n\n"
+                        f"**To get attachment reply with:** QTC:DOWNLOAD uid,filename\n\n"
+                        f"**Search FROM and/or Subject:** QTC:SEARCH from@email.com,subject\n\n"
+                    )
+
+                if not help_msg:
+                    #FIXME should be solved differently
+                    print("debug: empty help_msg")
+                else:
+                    prepare_msg += help_msg
+                    # Logout and close the connection
+                    mail.logout()
+                    send_p2p(prepare_msg)
+                    break  # Exit the loop if successful
+
+
         except (imaplib.IMAP4.error, imaplib.IMAP4_SSL.error, ConnectionResetError) as e:
             print(f"Attempt {attempt + 1} failed: {e}")
             if attempt < retries - 1:
@@ -220,6 +245,7 @@ def fetch_emails_by_uids(uids, retries=3, delay=5):
             mail.logout()
             send_p2p(prepare_msg)
             break  # Exit the loop if successful
+
         except (imaplib.IMAP4.error, imaplib.IMAP4_SSL.error, ConnectionResetError) as e:
             print(f"Attempt {attempt + 1} failed: {e}")
             if attempt < retries - 1:
@@ -288,10 +314,12 @@ def fetch_unread_emails(retries=3, delay=5):
                     f"**Subject:** {subject}\n\n"
                     f"**Attachment(s):** {attachment}\n\n"
                 )
+            print("prepare ", prepare_msg)
+            print("emailid ", email_ids)
 
             if len(prepare_msg) < 1:
                 prepare_msg = (
-                    f"**No no e-mails**\n\n"
+                    f"**No new e-mails**\n\n"
                     f"**Get email uids containing the from address and/or the subject** SEARCH:from@email.com,subject\n\n"
                 )
             else:
@@ -306,6 +334,7 @@ def fetch_unread_emails(retries=3, delay=5):
             mail.logout()
             send_p2p(prepare_msg)
             break  # Exit the loop if successful
+
         except (imaplib.IMAP4.error, imaplib.IMAP4_SSL.error, ConnectionResetError) as e:
             print(f"Attempt {attempt + 1} failed: {e}")
             if attempt < retries - 1:
