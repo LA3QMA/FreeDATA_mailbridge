@@ -31,7 +31,7 @@ The [CLIENT] work logic:
             QTC:uid (To get several uids you can use this format  QTC:1,3,4)
                 Get mail uid #1 or uids #1,3,4 from server and send this as a P2P messages
             QTC:DOWNLOAD uid,filename
-                If a messsage has attachments the uid and filename(s) is displayed. Use this to get a P2P messae with the attachment.
+                If a message has attachments the uid and filename(s) is displayed. Use this to get a P2P message with the attachment.
             QTC:SEARCH {from@email.com,subject}
                 Get email uids containing the from address and/or the subject and send this as a P2P message
                 If not searching the from address use this format: QTC:SEARCH ,subject
